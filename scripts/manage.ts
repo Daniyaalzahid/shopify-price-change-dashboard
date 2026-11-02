@@ -1,5 +1,10 @@
 import { readFile, readdir } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
+import { dirname, resolve } from "node:path";
+const migrationDirectory = resolve(
+  dirname(resolve(process.argv[1])),
+  "../migrations",
+);
 import { db, rows, write, closeDb } from "../src/server/db";
 import {
   digest,
@@ -21,15 +26,10 @@ async function migrate() {
       [],
       c,
     );
-    for (const name of (
-      await readdir(new URL("../migrations/", import.meta.url))
-    )
+    for (const name of (await readdir(migrationDirectory))
       .filter((n) => n.endsWith(".sql"))
       .sort()) {
-      const sql = await readFile(
-        new URL("../migrations/" + name, import.meta.url),
-        "utf8",
-      );
+      const sql = await readFile(resolve(migrationDirectory, name), "utf8");
       const checksum = digest(sql);
       const [existing] = await rows<{ checksum: string }>(
         "SELECT checksum FROM schema_migrations WHERE name=?",
