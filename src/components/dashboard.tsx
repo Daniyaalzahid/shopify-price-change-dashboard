@@ -444,6 +444,9 @@ export function Dashboard() {
                     your changes before leaving.
                   </div>
                 )}
+                <p className="table-hint">
+                  Scroll the table sideways to view and edit prices →
+                </p>
                 <div className="table-scroll">
                   <table className="product-table">
                     <thead>

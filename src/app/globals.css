@@ -1519,3 +1519,86 @@ select {
     width: 260px;
   }
 }
+/* Keep the working table readable at standard laptop widths. */
+.product-cell strong {
+  font-size: 12px;
+}
+.product-cell p {
+  font-size: 11px;
+}
+.product-cell small {
+  font-size: 10px;
+  color: #7c8971;
+}
+.brand-name,
+.price-cell,
+.compare-cell {
+  font-size: 12px;
+}
+.compare-cell {
+  color: #818e75;
+}
+.product-table th {
+  font-size: 11px;
+  color: #77876b;
+}
+.price-input-wrap input {
+  font-size: 12px;
+}
+.price-input-wrap input::placeholder {
+  font-size: 11px;
+}
+.status-badge {
+  font-size: 10px;
+}
+.nav-item {
+  font-size: 13px;
+}
+.catalog-title p,
+.page-heading p {
+  font-size: 12px;
+}
+.search-field input {
+  font-size: 12px;
+}
+.draft-status,
+.stat-card p {
+  font-size: 11px;
+}
+.filters > select {
+  font-size: 11px;
+}
+.price-difference {
+  font-size: 10px;
+}
+.table-hint {
+  display: none;
+}
+@media (max-width: 1200px) {
+  .table-hint {
+    display: block;
+    margin: 0;
+    padding: 0 22px 12px;
+    font-size: 10px;
+    color: #7c8b70;
+  }
+}
+@media (max-width: 850px) {
+  .nav-item {
+    font-size: 0;
+  }
+}
+@media (max-width: 550px) {
+  .draft-status,
+  .stat-card p {
+    font-size: 9px;
+  }
+  .catalog-title p,
+  .page-heading p {
+    font-size: 11px;
+  }
+  .table-hint {
+    padding-left: 13px;
+    padding-right: 13px;
+  }
+}
