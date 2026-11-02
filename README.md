@@ -74,3 +74,20 @@ Always-running workers are unsupported on the managed Business plan. Future Shop
 ## Still pending
 
 Shopify authorization, real product/variant synchronization, database-backed price drafts, stale-price conflicts, durable publish jobs, Shopify verification/retries, account-attributed price history and admin notifications. No Shopify credential is needed for this phase. Authentication has not been deployed to the user's Hostinger account by this PR.
+
+## Hostinger standalone setup commands
+
+The production build packages a self-contained `scripts/manage.cjs` and the SQL migrations into `.next/standalone`. Hostinger's live `hbuilds/current/nodejs` folder therefore contains the setup runner, without requiring `tsx`, npm or source dependencies on SSH. `last-source` is a source snapshot and is not a runtime installation.
+
+From SSH, first enter the live folder and migrate with the private environment file:
+
+```sh
+cd ~/domains/price.binbazz.com/hbuilds/current/nodejs
+/opt/alt/alt-nodejs22/root/bin/node --env-file="$HOME/domains/price.binbazz.com/hbuilds/config/.env" scripts/manage.cjs migrate
+```
+
+Verify that the private environment file exists with `test -f "$HOME/domains/price.binbazz.com/hbuilds/config/.env"` before running; never print it. If the hosting layout differs, use the actual private config path from your account. Replace Node version 22 if the app uses another supported version.
+
+For the first administrator, set temporary BOOTSTRAP_NAME, BOOTSTRAP_EMAIL and BOOTSTRAP_PASSWORD securely, then run the same command with `bootstrap` instead of `migrate`. Clear those temporary variables afterward. Avoid passwords in command arguments, shell history or screenshots. Cleanup and recovery also use this bundled runner. Do not run schema changes during every app startup.
+
+`npm run test:runtime` verifies that the packaged runner loads from an isolated directory containing no source or node_modules. CI also runs the packaged migration against MySQL.

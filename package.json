@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build --webpack",
+    "build": "next build --webpack && node scripts/package-runtime.mjs",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
@@ -14,7 +14,8 @@
     "db:recover-admin": "node --env-file-if-exists=.env --import tsx scripts/manage.ts recover-admin",
     "db:cleanup": "node --env-file-if-exists=.env --import tsx scripts/manage.ts cleanup",
     "test:integration": "node --import tsx --test tests/integration/*.test.ts",
-    "test:auth-browser": "playwright test --config=playwright.auth.config.ts"
+    "test:auth-browser": "playwright test --config=playwright.auth.config.ts",
+    "test:runtime": "node --test tests/runtime-package.test.mjs"
   },
   "engines": {
     "node": ">=22"
@@ -38,6 +39,7 @@
     "@types/node": "26.6.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
+    "esbuild": "0.28.2",
     "tailwindcss": "4.3.3",
     "typescript": "7.0.2"
   }
