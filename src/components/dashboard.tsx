@@ -42,7 +42,7 @@ import {
   type Drafts,
   type Product,
 } from "@/lib/products";
-const STORAGE_KEY = "price-desk:demo-drafts:v1";
+
 function ProductArt({ kind }: { kind: Product["kind"] }) {
   return (
     <div className={`product-art ${kind}`} aria-hidden="true">
@@ -54,7 +54,21 @@ function ProductArt({ kind }: { kind: Product["kind"] }) {
     </div>
   );
 }
-export function Dashboard() {
+import type { Account } from "@/lib/account";
+import { TeamPanel } from "@/components/team-panel";
+import { LogoutButton, PasswordForm } from "@/components/account-controls";
+
+export function Dashboard({ account }: { account?: Account }) {
+  const storageKey = account
+    ? `price-desk:user:${account.id}:sample-drafts:v1`
+    : "price-desk:demo-drafts:v1";
+  const displayName = account?.name ?? "Daniyaal Zahid";
+  const initials = displayName
+    .split(/\s+/)
+    .map((s) => s[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
   const [drafts, setDrafts] = useState<Drafts>({});
   const [ready, setReady] = useState(false);
   const [storageError, setStorageError] = useState(false);
@@ -71,21 +85,21 @@ export function Dashboard() {
   const [notice, setNotice] = useState(false);
   useEffect(() => {
     try {
-      setDrafts(readDrafts(localStorage.getItem(STORAGE_KEY)));
+      setDrafts(readDrafts(localStorage.getItem(storageKey)));
     } catch {
       setStorageError(true);
     }
     setReady(true);
-  }, []);
+  }, [storageKey]);
   useEffect(() => {
     if (!ready) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(drafts));
+      localStorage.setItem(storageKey, JSON.stringify(drafts));
       setStorageError(false);
     } catch {
       setStorageError(true);
     }
-  }, [drafts, ready]);
+  }, [drafts, ready, storageKey]);
   const changed = useMemo(
     () => products.filter((p) => isChanged(p, drafts)),
     [drafts],
@@ -169,20 +183,27 @@ export function Dashboard() {
         </div>
         <p className="nav-label">WORKSPACE</p>
         <nav>
-          {nav.map(({ name, icon: Icon }) => (
-            <button
-              key={name}
-              onClick={() => setSection(name)}
-              className={section === name ? "nav-item active" : "nav-item"}
-            >
-              <Icon size={18} />
-              {name}
-              {name === "Products" && (
-                <span className="nav-count">{products.length}</span>
-              )}
-              {name === "Update history" && <span className="small-dot" />}
-            </button>
-          ))}
+          {nav
+            .filter(
+              (item) =>
+                item.name !== "Team members" ||
+                !account ||
+                account.role === "super_admin",
+            )
+            .map(({ name, icon: Icon }) => (
+              <button
+                key={name}
+                onClick={() => setSection(name)}
+                className={section === name ? "nav-item active" : "nav-item"}
+              >
+                <Icon size={18} />
+                {name}
+                {name === "Products" && (
+                  <span className="nav-count">{products.length}</span>
+                )}
+                {name === "Update history" && <span className="small-dot" />}
+              </button>
+            ))}
         </nav>
         <div className="sidebar-note">
           <ShieldCheck size={20} />
@@ -195,10 +216,16 @@ export function Dashboard() {
             <CircleHelp size={17} /> Help & workflow
           </button>
           <div className="account">
-            <span className="avatar">DZ</span>
+            <span className="avatar">{initials}</span>
             <div>
-              <strong>Daniyaal Zahid</strong>
-              <small>Super Admin · Preview</small>
+              <strong>{displayName}</strong>
+              <small>
+                {account
+                  ? account.role === "super_admin"
+                    ? "Super Admin"
+                    : "Team member"
+                  : "Super Admin · Preview"}
+              </small>
             </div>
             <PanelLeftClose size={16} />
           </div>
@@ -213,7 +240,7 @@ export function Dashboard() {
           <div className="topbar-actions">
             <span className="preview-pill">
               <span />
-              UI preview
+              {account ? "Sample catalog" : "UI preview"}
             </span>
             <button
               className="icon-button notification-button"
@@ -223,7 +250,8 @@ export function Dashboard() {
               <Bell size={19} />
             </button>
             <span className="topbar-divider" />
-            <span className="avatar avatar-small">DZ</span>
+            <span className="avatar avatar-small">{initials}</span>
+            {account && <LogoutButton />}
           </div>
           {notice && (
             <div className="notification-panel">
@@ -242,10 +270,14 @@ export function Dashboard() {
               <LayoutGrid size={15} />
             </span>
             <p>
-              <strong>You’re viewing a demo workspace.</strong> Products and
-              prices are sample data. Shopify is not connected.
+              <strong>
+                {account
+                  ? "You’re signed in. This is still a sample catalog."
+                  : "You’re viewing a demo workspace."}
+              </strong>{" "}
+              Products and prices are sample data. Shopify is not connected.
             </p>
-            <span className="demo-label">Phase 01</span>
+            <span className="demo-label">{account ? "Phase 02" : "Demo"}</span>
           </div>
           {section === "Products" ? (
             <>
@@ -680,28 +712,28 @@ export function Dashboard() {
                   </div>
                 </>
               ) : section === "Team members" ? (
-                <>
-                  <p>
-                    Team accounts will be managed here after authentication is
-                    implemented.
-                  </p>
+                account?.role === "super_admin" ? (
+                  <TeamPanel />
+                ) : (
                   <div className="placeholder-card">
                     <Users size={34} />
-                    <h2>Authentication is not connected</h2>
+                    <h2>Team management</h2>
                     <p>
-                      The Super Admin shown in this preview is a visual
-                      placeholder, not a signed-in account.
+                      {account
+                        ? "Super Admin access is required."
+                        : "Account management is unavailable in demo mode."}
                     </p>
                   </div>
-                </>
+                )
               ) : section === "Settings" ? (
                 <>
                   <p>Store connection and workspace configuration.</p>
+                  {account && <PasswordForm />}
                   <div className="placeholder-card">
                     <Store size={34} />
                     <h2>Shopify is not connected</h2>
                     <p>
-                      Credentials, permissions and MySQL persistence will be
+                      Shopify authorization and product synchronization will be
                       added in the integration phase.
                     </p>
                     <Button disabled>Connect Shopify — coming next</Button>
@@ -718,8 +750,9 @@ export function Dashboard() {
                     <li>Export your draft changes as CSV if needed.</li>
                   </ol>
                   <p>
-                    Drafts stay in this browser. Live publishing, accounts and
-                    shared history are not implemented yet.
+                    Drafts stay in this browser and are separated by account
+                    when signed in. Live publishing and shared price history are
+                    not implemented yet.
                   </p>
                 </div>
               )}
