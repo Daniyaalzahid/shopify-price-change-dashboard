@@ -284,7 +284,7 @@ export function Dashboard({ account }: { account?: Account }) {
                   <div className="search-field">
                     <Search size={17} />
                     <input
-                      aria-label="Search products or SKU"
+                      aria-label="Search workspace catalog"
                       placeholder="Search product name or SKU…"
                       value={query}
                       onChange={(e) => {
@@ -295,7 +295,7 @@ export function Dashboard({ account }: { account?: Account }) {
                     />
                     {query && (
                       <button
-                        aria-label="Clear search"
+                        aria-label="Clear workspace search"
                         onClick={() => {
                           setQuery("");
                           setPage(1);
@@ -434,6 +434,29 @@ export function Dashboard({ account }: { account?: Account }) {
                   </span>
                 </div>
                 <div className="filters">
+                  <div className="search-field catalog-search">
+                    <Search size={17} />
+                    <input
+                      aria-label="Search products or SKU"
+                      placeholder="Search by product name or SKU…"
+                      value={query}
+                      onChange={(e) => {
+                        setQuery(e.target.value);
+                        setPage(1);
+                      }}
+                    />
+                    {query && (
+                      <button
+                        aria-label="Clear search"
+                        onClick={() => {
+                          setQuery("");
+                          setPage(1);
+                        }}
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
                   <label className="sr-only" htmlFor="brand">
                     Brand
                   </label>

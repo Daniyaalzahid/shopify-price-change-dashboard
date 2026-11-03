@@ -1768,3 +1768,22 @@ h1,.secondary-view h1,.login-card h1,.dialog-title {font-size:22px;letter-spacin
   .filters {display:grid;grid-template-columns:1fr 1fr}
   .filters select {min-width:0}
 }
+
+/* Catalog reading scale and search toolbar. */
+.catalog-search { min-height: 42px; background: var(--surface-1); border-radius: 8px; }
+.catalog-search:focus-within { border-color: var(--accent-primary); }
+.catalog-search input, .filters > select, .btn, .nav-item { font-size: 14px; }
+.filters > select { height: 42px; }
+h1, .secondary-view h1, .dialog-title, .login-card h1 { font-size: clamp(24px, 2vw, 30px); }
+.catalog-title h2 { font-size: 21px; }
+.page-heading p, .catalog-title p, .review-table td { font-size: 14px; }
+.product-cell strong, .price-cell { font-size: 16px; line-height: 1.4; font-weight: 600; }
+.product-cell p, .brand-name, .compare-cell, .price-input-wrap input { font-size: 14px; }
+.product-cell small, .product-table th, .price-input-wrap input::placeholder,
+.draft-status, .edited-toggle, .status-badge, .action-bar p { font-size: 12px; }
+.stats-grid .stat-card > strong { font-size: 26px; }
+@media (max-width: 550px) {
+  .catalog-search { grid-column: 1 / -1; min-width: 0; }
+  .catalog-search input, .price-input-wrap input { font-size: 16px; }
+  .product-cell strong { font-size: 15px; }
+}
