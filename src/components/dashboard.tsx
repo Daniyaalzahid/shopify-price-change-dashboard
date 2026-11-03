@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowRight,
@@ -53,13 +53,14 @@ function ProductArt({ kind }: { kind: Product["kind"] }) {
     </div>
   );
 }
+import { PriceHistory } from "./price-history";
 import { useCatalog } from "./use-catalog";
 import type { Account } from "@/lib/account";
 import { TeamPanel } from "@/components/team-panel";
 import { LogoutButton, PasswordForm } from "@/components/account-controls";
 
 export function Dashboard({ account }: { account?: Account }) {
-  const { products, currency, loading, connected, message, sync } = useCatalog(!!account);
+  const { products, currency, loading, connected, message, recordPrice, sync } = useCatalog(!!account);
   const connection = loading ? "Syncing" : connected ? "Connected" : "Not connected";
   const storageKey = account
     ? `price-desk:user:${account.id}:shopify-drafts:v1`
@@ -86,14 +87,14 @@ export function Dashboard({ account }: { account?: Account }) {
   const [section, setSection] = useState("Products");
   const [notice, setNotice] = useState(false);
   useEffect(() => {
-    if (account && !connected) return;
+    if (ready || (account && !connected)) return;
     try {
       setDrafts(readDrafts(localStorage.getItem(storageKey), products));
     } catch {
       setStorageError(true);
     }
     setReady(true);
-  }, [storageKey, products, account, connected]);
+  }, [storageKey, products, account, connected, ready]);
   useEffect(() => {
     if (!ready) return;
     try {
@@ -107,6 +108,39 @@ export function Dashboard({ account }: { account?: Account }) {
     () => products.filter((p) => isChanged(p, drafts)),
     [products, drafts],
   );
+  const publishingRef = useRef(false);
+  const [publishing, setPublishing] = useState(false);
+  const [publishMessage, setPublishMessage] = useState("");
+  async function publish() {
+    if (!account || !connected || loading || publishingRef.current || !changed.length || invalid.length) return;
+    publishingRef.current = true;
+    setPublishing(true);
+    let count = 0;
+    let current = "";
+    try {
+      for (const product of changed) {
+        current = product.sku || product.name;
+        setPublishMessage(`Updating ${current} (${count + 1} of ${changed.length})…`);
+        const res = await fetch("/api/prices", {method:"POST", headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({id:product.id, expected:product.price, price:drafts[product.id]})});
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Update failed.");
+        recordPrice(product.id, data.price);
+        setDrafts(existing => {
+          const remaining = {...existing};
+          delete remaining[product.id];
+          return remaining;
+        });
+        count++;
+      }
+      setPublishMessage(`Shopify confirmed ${count} price updates.`);
+    } catch (e) {
+      setPublishMessage(`${count} confirmed. Stopped at ${current}. ${e instanceof Error ? e.message : "Check Shopify before retrying."}`);
+    } finally {
+      publishingRef.current = false;
+      setPublishing(false);
+    }
+  }
   const invalid = changed.filter((p) => priceError(drafts[p.id]));
   const filtered = useMemo(
     () =>
@@ -259,11 +293,7 @@ export function Dashboard({ account }: { account?: Account }) {
           {notice && (
             <div className="notification-panel">
               <strong>Notifications</strong>
-              <p>No live price updates yet.</p>
-              <small>
-                Account-wise update notifications will appear here after Shopify
-                is connected.
-              </small>
+              {account ? <PriceHistory compact /> : <p>No live price updates yet.</p>}
             </div>
           )}
         </header>
@@ -352,7 +382,7 @@ export function Dashboard({ account }: { account?: Account }) {
                   <strong className="connection-text">{connection}</strong>
                   <p>
                     <span className="stat-dot muted-dot" />
-                    Live updates are disabled
+                    {account ? "Review edits before publishing" : "Live updates are disabled"}
                   </p>
                 </div>
               </div>
@@ -683,7 +713,7 @@ export function Dashboard({ account }: { account?: Account }) {
                   </Button>
                   <Button
                     disabled={!changed.length || !!invalid.length}
-                    onClick={() => setReview(true)}
+                    onClick={() => { setPublishMessage(""); setReview(true); }}
                   >
                     Review changes{" "}
                     {changed.length > 0 && (
@@ -704,14 +734,7 @@ export function Dashboard({ account }: { account?: Account }) {
                     Every live update will record the account, product, old
                     price, new price and result.
                   </p>
-                  <div className="placeholder-card">
-                    <History size={34} />
-                    <h2>No live updates yet</h2>
-                    <p>
-                      There are no
-                      completed updates or notifications to display.
-                    </p>
-                  </div>
+                  {account ? <PriceHistory /> : <p>No live updates yet.</p>}
                 </>
               ) : section === "Team members" ? (
                 account?.role === "super_admin" ? (
@@ -771,7 +794,7 @@ export function Dashboard({ account }: { account?: Account }) {
           </footer>
         </main>
       </div>
-      <Dialog open={review} onOpenChange={setReview}>
+      <Dialog open={review} onOpenChange={open => { if (!publishing) setReview(open); }}>
         <DialogContent>
           <div className="dialog-eyebrow">
             <Tag size={17} />
@@ -786,7 +809,7 @@ export function Dashboard({ account }: { account?: Account }) {
           </DialogDescription>
           <div className="review-info">
             <ShieldCheck size={17} />
-            <span>{account ? "Price publishing is disabled. You can export these drafts." : "Demo mode: nothing will be sent to Shopify."}</span>
+            <span>{account ? "Review the current and new prices before publishing." : "Demo mode: nothing will be sent to Shopify."}</span>
           </div>
           <div className="review-table-wrap">
             <table className="review-table">
@@ -823,6 +846,7 @@ export function Dashboard({ account }: { account?: Account }) {
               </tbody>
             </table>
           </div>
+          <p role="status">{publishMessage}</p>
           <div className="review-footer">
             <Button
               variant="outline"
@@ -832,8 +856,8 @@ export function Dashboard({ account }: { account?: Account }) {
               <Download size={16} />
               Export changes
             </Button>
-            <Button disabled title="Shopify connection is required">
-              Update Shopify
+            <Button disabled={!account || !connected || loading || publishing || !changed.length || !!invalid.length} onClick={publish}>
+              {publishing ? "Updating…" : "Update Shopify"}
               <ArrowRight size={16} />
             </Button>
           </div>
@@ -852,6 +876,7 @@ export function Dashboard({ account }: { account?: Account }) {
             This clears your saved entries across all pages and filters.
             Shopify prices will not change.
           </DialogDescription>
+          <p role="status">{publishMessage}</p>
           <div className="review-footer">
             <Button variant="outline" onClick={() => setDiscard(false)}>
               Keep editing

@@ -44,5 +44,8 @@ export function useCatalog(live: boolean) {
     void load();
     return () => controller.abort();
   }, [live, revision]);
-  return {products, currency, loading, connected, message, sync: () => setRevision(n => n + 1)};
+  function recordPrice(id: string, price: number) {
+    setProducts(current => current.map(p => p.id === id ? {...p, price} : p));
+  }
+  return {products, currency, loading, connected, message, recordPrice, sync: () => setRevision(n => n + 1)};
 }
