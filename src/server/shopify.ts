@@ -20,7 +20,7 @@ const query = `query Catalog($after: String) {
   }
 }`;
 
-export async function catalogPage(after: string | null) {
+async function shopifyClient() {
   const domain = process.env.SHOPIFY_STORE_DOMAIN?.trim().toLowerCase();
   const clientId = process.env.SHOPIFY_CLIENT_ID?.trim();
   const secret = process.env.SHOPIFY_CLIENT_SECRET?.trim();
@@ -37,7 +37,7 @@ export async function catalogPage(after: string | null) {
     cached = { domain, token: auth.access_token, expires: Date.now() + (Number(auth.expires_in) - 90) * 1000 };
   }
   const token = cached.token;
-  async function read<T>(document: string, variables: Record<string, string | null>): Promise<T> {
+  async function read<T>(document: string, variables: Record<string, unknown>): Promise<T> {
     for (let attempt = 0; attempt < 4; attempt++) {
       const res = await fetch(`https://${domain}/admin/api/2026-10/graphql.json`, {
         method: "POST", redirect: "error", cache: "no-store", signal: AbortSignal.timeout(20000),
@@ -52,13 +52,18 @@ export async function catalogPage(after: string | null) {
         continue;
       }
       if (res.status === 403 || codes.includes("ACCESS_DENIED"))
-        throw new HttpError(502, "Approve product read access for the installed Shopify app.");
+        throw new HttpError(403, document.startsWith("mutation") ? "Approve write_products for the installed app and retry." : "Approve product read access for the installed Shopify app.");
       if (!res.ok || body.errors?.length || !body.data)
-        throw new HttpError(502, "Shopify could not return this catalog page. Retry sync.");
+        throw new HttpError(502, "Shopify could not complete the request. Check the live catalog.");
       return body.data;
     }
     throw new HttpError(429, "Shopify is busy. Retry sync shortly.");
   }
+  return read;
+}
+
+export async function catalogPage(after: string | null) {
+  const read = await shopifyClient();
   const data = await read<{shop: {currencyCode: string}; productVariants: Page<Variant>}>(query, {after});
   const products: Product[] = [];
   const memberships = new Map<string, string[]>();
@@ -87,4 +92,28 @@ export async function catalogPage(after: string | null) {
   const info = data.productVariants.pageInfo;
   if (info.hasNextPage && !info.endCursor) throw new HttpError(502, "Shopify returned an incomplete variant page.");
   return {products, currency: data.shop.currencyCode, next: info.hasNextPage ? info.endCursor : null};
+}
+
+export async function pricingClient() {
+  const request = await shopifyClient();
+  return {
+    async variant(id: string) {
+      const data = await request<{productVariant: {price: string; sku: string | null; product: {id: string; title: string}} | null}>(
+        "query Price($id: ID!) { productVariant(id: $id) { sku price product { id title } } }", {id});
+      if (!data.productVariant) throw new HttpError(409, "Variant no longer exists. Sync the catalog.");
+      return data.productVariant;
+    },
+    async setPrice(productId: string, id: string, price: string) {
+      const data = await request<{productVariantsBulkUpdate: {productVariants: {id: string; price: string}[]; userErrors: {message: string}[]}}>(
+        `mutation Price($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+            productVariants { id price } userErrors { message }
+          }
+        }`, {productId, variants: [{id, price}]});
+      const result = data.productVariantsBulkUpdate;
+      if (result.userErrors.length) throw new HttpError(422, result.userErrors[0].message.slice(0, 240));
+      if (!result.productVariants.some(v => v.id === id && Number(v.price) === Number(price)))
+        throw new HttpError(502, "Price was not confirmed. Check Shopify before retrying.");
+    },
+  };
 }
