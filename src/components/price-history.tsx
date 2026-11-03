@@ -33,7 +33,7 @@ export function PriceHistory({compact = false}: {compact?: boolean}) {
     {error && <p>{error}</p>}
     {busy && <p>Loading price history…</p>}
     {!busy && !error && !entries.length && <p>No price updates yet.</p>}
-    {(compact ? entries.slice(0,3) : entries).map(entry => <div key={entry.id} className="stat-card">
+    {(compact ? entries.slice(0,3) : entries).map(entry => <div key={entry.id} className="history-entry">
       <strong>{entry.product_name} · {entry.sku || entry.variant_id}</strong>
       <p>{entry.actor_name} · {new Date(Number(entry.created_at)).toLocaleString()}</p>
       <p>{Number(entry.old_price)} → {Number(entry.new_price)} · {entry.status}</p>

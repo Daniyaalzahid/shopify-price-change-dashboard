@@ -15,7 +15,11 @@ import {
   History,
   LayoutGrid,
   Package,
-  PanelLeftClose,
+  Menu,
+  Monitor,
+  Refrigerator,
+  Wind,
+  WashingMachine,
   Search,
   Settings2,
   ShieldCheck,
@@ -43,15 +47,8 @@ import {
 } from "@/lib/products";
 
 function ProductArt({ kind }: { kind: Product["kind"] }) {
-  return (
-    <div className={`product-art ${kind}`} aria-hidden="true">
-      <div className="appliance">
-        <i />
-        <b />
-        <span />
-      </div>
-    </div>
-  );
+  const Icon = {tv: Monitor, fridge: Refrigerator, ac: Wind, washer: WashingMachine, small: Package}[kind];
+  return <span className="product-art" aria-hidden="true"><Icon size={19} /></span>;
 }
 import { PriceHistory } from "./price-history";
 import { useCatalog } from "./use-catalog";
@@ -200,26 +197,12 @@ export function Dashboard({ account }: { account?: Account }) {
     { name: "Team members", icon: Users },
     { name: "Settings", icon: Settings2 },
   ];
-  return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <a href="/" className="wordmark">
-          <span className="logo-mark">
-            <Tag size={21} />
-          </span>
-          price<span className="wordmark-light">desk</span>
-          <span className="wordmark-dot">.</span>
-        </a>
-        <div className="workspace">
-          <span className="workspace-icon">BE</span>
-          <div>
-            <strong>Bismillah Electronics</strong>
-            <small>Store workspace</small>
-          </div>
-          <ChevronsUpDown size={14} />
-        </div>
-        <p className="nav-label">WORKSPACE</p>
-        <nav>
+  const drawer = useRef<HTMLDialogElement>(null);
+  function navigate(name: string) {
+    setSection(name);
+    drawer.current?.close();
+  }
+  const navigation = (        <nav>
           {nav
             .filter(
               (item) =>
@@ -230,7 +213,9 @@ export function Dashboard({ account }: { account?: Account }) {
             .map(({ name, icon: Icon }) => (
               <button
                 key={name}
-                onClick={() => setSection(name)}
+                aria-label={name}
+                aria-current={section === name ? "page" : undefined}
+                onClick={() => navigate(name)}
                 className={section === name ? "nav-item active" : "nav-item"}
               >
                 <Icon size={18} />
@@ -241,7 +226,25 @@ export function Dashboard({ account }: { account?: Account }) {
                 {name === "Update history" && <span className="small-dot" />}
               </button>
             ))}
-        </nav>
+        </nav>);
+  return (
+    <div className="app-shell">
+      <dialog ref={drawer} className="mobile-drawer" aria-label="Workspace navigation" onClick={e => {if(e.target === drawer.current) drawer.current.close()}}>
+        <div className="drawer-inner"><div className="drawer-title"><strong>PriceDesk</strong><button className="icon-button" aria-label="Close navigation" onClick={() => drawer.current?.close()}><X size={18}/></button></div>
+        {navigation}<button className="help-link" onClick={() => navigate("Help")}>Help &amp; workflow</button></div>
+      </dialog>
+      <aside className="sidebar">
+
+        <div className="workspace">
+          <span className="workspace-icon">BE</span>
+          <div>
+            <strong>Bismillah Electronics</strong>
+            <small>Store workspace</small>
+          </div>
+
+        </div>
+        <p className="nav-label">WORKSPACE</p>
+        {navigation}
         <div className="sidebar-note">
           <ShieldCheck size={20} />
           <strong>Your store, in control.</strong>
@@ -264,18 +267,52 @@ export function Dashboard({ account }: { account?: Account }) {
                   : "Super Admin · Preview"}
               </small>
             </div>
-            <PanelLeftClose size={16} />
+
           </div>
         </div>
       </aside>
       <div className="main-shell">
         <header className="topbar">
-          <div className="breadcrumb">
-            Workspace <ChevronRight size={13} />
-            <strong>{section}</strong>
-          </div>
+        <a href="/" className="wordmark">
+          <span className="logo-mark">
+            <Tag size={21} />
+          </span>
+          price<span className="wordmark-light">desk</span>
+          <span className="wordmark-dot">.</span>
+        </a>
+          <button className="mobile-menu icon-button" aria-label="Open navigation" onClick={() => drawer.current?.showModal()}><Menu size={19}/></button>
+                  <div className="search-field">
+                    <Search size={17} />
+                    <input
+                      aria-label="Search products or SKU"
+                      placeholder="Search product name or SKU…"
+                      value={query}
+                      onChange={(e) => {
+                        setSection("Products");
+                        setQuery(e.target.value);
+                        setPage(1);
+                      }}
+                    />
+                    {query && (
+                      <button
+                        aria-label="Clear search"
+                        onClick={() => {
+                          setQuery("");
+                          setPage(1);
+                        }}
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
           <div className="topbar-actions">
-            <span className="preview-pill">
+                <Button
+                  className="header-sync"
+                  disabled={!account || loading}
+                  onClick={sync}
+                >
+                  <Store size={16} /> Sync products
+                </Button>            <span className="preview-pill">
               <span />
               {account ? "Shopify catalog" : "UI preview"}
             </span>
@@ -321,17 +358,10 @@ export function Dashboard({ account }: { account?: Account }) {
                     Product pricing<span>.</span>
                   </h1>
                   <p>
-                    Find your products. Make your changes. Keep every price in
-                    check.
+                    Manage variant prices across your Shopify catalog.
                   </p>
                 </div>
-                <Button
-                  variant="outline"
-                  disabled={!account || loading}
-                  onClick={sync}
-                >
-                  <Store size={16} /> Sync products
-                </Button>
+
               </div>
               <div className="stats-grid">
                 <div className="stat-card">
@@ -404,29 +434,6 @@ export function Dashboard({ account }: { account?: Account }) {
                   </span>
                 </div>
                 <div className="filters">
-                  <div className="search-field">
-                    <Search size={17} />
-                    <input
-                      aria-label="Search products or SKU"
-                      placeholder="Search product name or SKU…"
-                      value={query}
-                      onChange={(e) => {
-                        setQuery(e.target.value);
-                        setPage(1);
-                      }}
-                    />
-                    {query && (
-                      <button
-                        aria-label="Clear search"
-                        onClick={() => {
-                          setQuery("");
-                          setPage(1);
-                        }}
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-                  </div>
                   <label className="sr-only" htmlFor="brand">
                     Brand
                   </label>
