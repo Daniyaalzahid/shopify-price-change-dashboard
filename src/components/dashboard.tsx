@@ -33,7 +33,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  products,
   filterProducts,
   isChanged,
   money,
@@ -54,13 +53,16 @@ function ProductArt({ kind }: { kind: Product["kind"] }) {
     </div>
   );
 }
+import { useCatalog } from "./use-catalog";
 import type { Account } from "@/lib/account";
 import { TeamPanel } from "@/components/team-panel";
 import { LogoutButton, PasswordForm } from "@/components/account-controls";
 
 export function Dashboard({ account }: { account?: Account }) {
+  const { products, currency, loading, connected, message, sync } = useCatalog(!!account);
+  const connection = loading ? "Syncing" : connected ? "Connected" : "Not connected";
   const storageKey = account
-    ? `price-desk:user:${account.id}:sample-drafts:v1`
+    ? `price-desk:user:${account.id}:shopify-drafts:v1`
     : "price-desk:demo-drafts:v1";
   const displayName = account?.name ?? "Daniyaal Zahid";
   const initials = displayName
@@ -84,13 +86,14 @@ export function Dashboard({ account }: { account?: Account }) {
   const [section, setSection] = useState("Products");
   const [notice, setNotice] = useState(false);
   useEffect(() => {
+    if (account && !connected) return;
     try {
-      setDrafts(readDrafts(localStorage.getItem(storageKey)));
+      setDrafts(readDrafts(localStorage.getItem(storageKey), products));
     } catch {
       setStorageError(true);
     }
     setReady(true);
-  }, [storageKey]);
+  }, [storageKey, products, account, connected]);
   useEffect(() => {
     if (!ready) return;
     try {
@@ -102,7 +105,7 @@ export function Dashboard({ account }: { account?: Account }) {
   }, [drafts, ready, storageKey]);
   const changed = useMemo(
     () => products.filter((p) => isChanged(p, drafts)),
-    [drafts],
+    [products, drafts],
   );
   const invalid = changed.filter((p) => priceError(drafts[p.id]));
   const filtered = useMemo(
@@ -112,7 +115,7 @@ export function Dashboard({ account }: { account?: Account }) {
         { query, brand, collection, status, editedOnly },
         drafts,
       ),
-    [query, brand, collection, status, editedOnly, drafts],
+    [products, query, brand, collection, status, editedOnly, drafts],
   );
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const activePage = Math.min(page, pages);
@@ -153,7 +156,7 @@ export function Dashboard({ account }: { account?: Account }) {
     );
     const a = document.createElement("a");
     a.href = url;
-    a.download = "price-desk-demo-changes.csv";
+    a.download = "price-desk-changes.csv";
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
@@ -240,7 +243,7 @@ export function Dashboard({ account }: { account?: Account }) {
           <div className="topbar-actions">
             <span className="preview-pill">
               <span />
-              {account ? "Sample catalog" : "UI preview"}
+              {account ? "Shopify catalog" : "UI preview"}
             </span>
             <button
               className="icon-button notification-button"
@@ -272,12 +275,12 @@ export function Dashboard({ account }: { account?: Account }) {
             <p>
               <strong>
                 {account
-                  ? "You’re signed in. This is still a sample catalog."
+                  ? "Shopify catalog."
                   : "You’re viewing a demo workspace."}
               </strong>{" "}
-              Products and prices are sample data. Shopify is not connected.
+              {account ? message : "Products and prices are sample data. Shopify is not connected."}
             </p>
-            <span className="demo-label">{account ? "Phase 02" : "Demo"}</span>
+            <span className="demo-label">{account ? "Catalog" : "Demo"}</span>
           </div>
           {section === "Products" ? (
             <>
@@ -294,8 +297,8 @@ export function Dashboard({ account }: { account?: Account }) {
                 </div>
                 <Button
                   variant="outline"
-                  disabled
-                  title="Available after Shopify connection"
+                  disabled={!account || loading}
+                  onClick={sync}
                 >
                   <Store size={16} /> Sync products
                 </Button>
@@ -303,13 +306,13 @@ export function Dashboard({ account }: { account?: Account }) {
               <div className="stats-grid">
                 <div className="stat-card">
                   <div>
-                    <span>Sample variants</span>
+                    <span>{account ? "Shopify variants" : "Sample variants"}</span>
                     <Package size={17} />
                   </div>
                   <strong>{products.length.toString().padStart(2, "0")}</strong>
                   <p>
                     <span className="stat-dot" />
-                    {products.length - 2} active · 2 draft
+                    {products.filter(p => p.status === "Active").length} active · {products.filter(p => p.status === "Draft").length} draft
                   </p>
                 </div>
                 <div className="stat-card">
@@ -323,7 +326,7 @@ export function Dashboard({ account }: { account?: Account }) {
                       .padStart(2, "0")}
                   </strong>
                   <p>
-                    Across {new Set(products.map((p) => p.collection)).size}{" "}
+                    Across {new Set(products.flatMap((p) => p.collections ?? [p.collection])).size}{" "}
                     collections
                   </p>
                 </div>
@@ -346,7 +349,7 @@ export function Dashboard({ account }: { account?: Account }) {
                     <span>Shopify connection</span>
                     <Store size={17} />
                   </div>
-                  <strong className="connection-text">Not connected</strong>
+                  <strong className="connection-text">{connection}</strong>
                   <p>
                     <span className="stat-dot muted-dot" />
                     Live updates are disabled
@@ -424,7 +427,7 @@ export function Dashboard({ account }: { account?: Account }) {
                     }}
                   >
                     <option value="">All collections</option>
-                    {[...new Set(products.map((p) => p.collection))]
+                    {[...new Set(products.flatMap((p) => p.collections ?? [p.collection]))]
                       .sort()
                       .map((c) => (
                         <option key={c}>{c}</option>
@@ -442,8 +445,7 @@ export function Dashboard({ account }: { account?: Account }) {
                     }}
                   >
                     <option value="">All statuses</option>
-                    <option>Active</option>
-                    <option>Draft</option>
+                    {[...new Set(products.map(p => p.status))].sort().map(value => <option key={value}>{value}</option>)}
                   </select>
                 </div>
                 <div className="filter-meta">
@@ -466,7 +468,7 @@ export function Dashboard({ account }: { account?: Account }) {
                     )}
                     <span className="currency-label">
                       <SlidersHorizontal size={13} />
-                      Currency: PKR
+                      Currency: {currency || "—"}
                     </span>
                   </div>
                 </div>
@@ -486,13 +488,13 @@ export function Dashboard({ account }: { account?: Account }) {
                         <th className="product-col">Product / variant</th>
                         <th>Brand</th>
                         <th>
-                          Current price <span>PKR</span>
+                          Current price <span>{currency}</span>
                         </th>
                         <th>
-                          Compare-at <span>PKR</span>
+                          Compare-at <span>{currency}</span>
                         </th>
                         <th className="new-price-heading">
-                          New price <span>PKR</span>
+                          New price <span>{currency}</span>
                         </th>
                         <th>Status</th>
                       </tr>
@@ -509,7 +511,7 @@ export function Dashboard({ account }: { account?: Account }) {
                           >
                             <td>
                               <div className="product-cell">
-                                <ProductArt kind={p.kind} />
+                                {p.image ? <img src={p.image} width={40} height={40} loading="lazy" alt="" style={{objectFit:"contain"}} /> : account ? <Package size={24} /> : <ProductArt kind={p.kind} />}
                                 <div>
                                   <strong>{p.name}</strong>
                                   <p>{p.variant}</p>
@@ -522,13 +524,13 @@ export function Dashboard({ account }: { account?: Account }) {
                             </td>
                             <td className="price-cell">{money(p.price)}</td>
                             <td className="compare-cell">
-                              {p.compareAt ? money(p.compareAt) : "—"}
+                              {p.compareAt !== null ? money(p.compareAt) : "—"}
                             </td>
                             <td>
                               <div
                                 className={`price-input-wrap ${changedRow ? "changed" : ""} ${error ? "has-error" : ""}`}
                               >
-                                <span>Rs.</span>
+                                <span>{currency === "PKR" ? "Rs." : currency}</span>
                                 <input
                                   aria-label={`New price for ${p.sku}`}
                                   inputMode="decimal"
@@ -706,7 +708,7 @@ export function Dashboard({ account }: { account?: Account }) {
                     <History size={34} />
                     <h2>No live updates yet</h2>
                     <p>
-                      This preview has no Shopify connection. There are no
+                      There are no
                       completed updates or notifications to display.
                     </p>
                   </div>
@@ -731,17 +733,16 @@ export function Dashboard({ account }: { account?: Account }) {
                   {account && <PasswordForm />}
                   <div className="placeholder-card">
                     <Store size={34} />
-                    <h2>Shopify is not connected</h2>
+                    <h2>Shopify · {connection}</h2>
                     <p>
-                      Shopify authorization and product synchronization will be
-                      added in the integration phase.
+                      {account ? message : "Sign in to use the live catalog."}
                     </p>
-                    <Button disabled>Connect Shopify — coming next</Button>
+                    <Button disabled={!account || loading} onClick={sync}>Sync products</Button>
                   </div>
                 </>
               ) : (
                 <div className="placeholder-card help-card">
-                  <h2>How to use this preview</h2>
+                  <h2>How to use this workspace</h2>
                   <ol>
                     <li>Find products by name, SKU, brand or collection.</li>
                     <li>Enter individual prices in the New price column.</li>
@@ -766,7 +767,7 @@ export function Dashboard({ account }: { account?: Account }) {
             <span>
               price<span>desk</span>. <small>by Bismillah Electronics</small>
             </span>
-            <p>Internal pricing workspace · UI preview</p>
+            <p>Internal pricing workspace</p>
           </footer>
         </main>
       </div>
@@ -785,7 +786,7 @@ export function Dashboard({ account }: { account?: Account }) {
           </DialogDescription>
           <div className="review-info">
             <ShieldCheck size={17} />
-            <span>Demo mode: nothing will be sent to Shopify.</span>
+            <span>{account ? "Price publishing is disabled. You can export these drafts." : "Demo mode: nothing will be sent to Shopify."}</span>
           </div>
           <div className="review-table-wrap">
             <table className="review-table">
@@ -848,7 +849,7 @@ export function Dashboard({ account }: { account?: Account }) {
             Discard all drafts?
           </DialogTitle>
           <DialogDescription className="dialog-description">
-            This clears your saved demo entries across all pages and filters.
+            This clears your saved entries across all pages and filters.
             Shopify prices will not change.
           </DialogDescription>
           <div className="review-footer">

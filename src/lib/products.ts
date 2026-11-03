@@ -7,7 +7,9 @@ export type Product = {
   collection: string;
   price: number;
   compareAt: number | null;
-  status: "Active" | "Draft";
+  status: string;
+  image?: string;
+  collections?: string[];
   kind: "ac" | "fridge" | "tv" | "washer" | "small";
 };
 export const products: Product[] = [
@@ -239,18 +241,18 @@ export function filterProducts(
     (p) =>
       (!q || `${p.name} ${p.variant} ${p.sku}`.toLowerCase().includes(q)) &&
       (!filters.brand || p.brand === filters.brand) &&
-      (!filters.collection || p.collection === filters.collection) &&
+      (!filters.collection || (p.collections ?? [p.collection]).includes(filters.collection)) &&
       (!filters.status || p.status === filters.status) &&
       (!filters.editedOnly || isChanged(p, drafts)),
   );
 }
-export function readDrafts(raw: string | null): Drafts {
+export function readDrafts(raw: string | null, items: Product[] = products): Drafts {
   if (!raw) return {};
   try {
     const data: unknown = JSON.parse(raw);
     if (!data || typeof data !== "object" || Array.isArray(data)) return {};
     const result: Drafts = {};
-    for (const p of products) {
+    for (const p of items) {
       const value = (data as Record<string, unknown>)[p.id];
       if (typeof value === "string" && value.length < 40) result[p.id] = value;
     }
